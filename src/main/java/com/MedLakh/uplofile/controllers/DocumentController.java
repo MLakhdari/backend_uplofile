@@ -3,10 +3,9 @@ package com.MedLakh.uplofile.controllers;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,7 +67,8 @@ public class DocumentController {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(file.getSize());
             metadata.setContentType(file.getContentType());
-            String fileName = file.getOriginalFilename() + "_" + UUID.randomUUID().toString();
+            Instant instant = Instant.now();
+            String fileName = instant.getEpochSecond() + "_" + file.getOriginalFilename();
 
             TransferManager transferManager = TransferManagerBuilder.standard().withS3Client(amazonS3).build();
             Upload upload = transferManager.upload(bucketName, fileName, file.getInputStream(), metadata);
@@ -100,7 +100,6 @@ public class DocumentController {
     public ResponseEntity<Object> downloadFile(@RequestParam(required = true) String file,
             @RequestParam("id") String id) {
         File tempFile = null;
-        byte[] fileBytes = null;
         try {
             String fileName = UriUtils.decode(file, StandardCharsets.UTF_8);
             S3Object s3Object = amazonS3.getObject(bucketName, fileName);
@@ -130,17 +129,14 @@ public class DocumentController {
             }
             this.progressDownload.remove(id);
 
-            fileBytes = Files.readAllBytes(tempFile.toPath());
-
             HttpHeaders headers = new HttpHeaders();
-            String _fileName = fileName.substring(0, fileName.lastIndexOf("_"));
-            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + _fileName + "\"");
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
 
             return ResponseEntity.ok()
                     .contentLength(tempFile.length())
                     .contentType(MediaType.parseMediaType(s3Object.getObjectMetadata().getContentType()))
                     .headers(headers)
-                    .body(fileBytes);
+                    .body(tempFile);
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("A technical error has occurred. Please contact support."));
@@ -153,35 +149,4 @@ public class DocumentController {
             }
         }
     }
-
-    /*
-     * @GetMapping("/{fileName}")
-     * public ResponseEntity<Object> downloadFiles(@PathVariable(required = true)
-     * String fileName) {
-     * try {
-     * S3Object s3Object = amazonS3.getObject(bucketName, fileName);
-     * S3ObjectInputStream stream = s3Object.getObjectContent();
-     * ByteArrayResource resource = new
-     * ByteArrayResource(IOUtils.toByteArray(stream));
-     * HttpHeaders headers = new HttpHeaders();
-     * String _fileName = fileName.substring(0, fileName.lastIndexOf("_"));
-     * headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" +
-     * _fileName + "\"");
-     * 
-     * return ResponseEntity.ok()
-     * .contentLength(s3Object.getObjectMetadata().getContentLength())
-     * .contentType(MediaType.parseMediaType(s3Object.getObjectMetadata().
-     * getContentType()))
-     * .headers(headers)
-     * .body(resource);
-     * } catch (IOException e) {
-     * return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new
-     * MessageResponse(
-     * "A technical error has occurred. Please contact support."));
-     * } catch (Exception e) {
-     * return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new
-     * MessageResponse("The requested document was not found."));
-     * }
-     * }
-     */
 }
