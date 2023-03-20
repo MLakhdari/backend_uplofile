@@ -3,6 +3,7 @@ package com.MedLakh.uplofile.controllers;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -100,6 +101,7 @@ public class DocumentController {
     public ResponseEntity<Object> downloadFile(@RequestParam(required = true) String file,
             @RequestParam("id") String id) {
         File tempFile = null;
+        byte[] fileBytes = null;
         try {
             String fileName = UriUtils.decode(file, StandardCharsets.UTF_8);
             S3Object s3Object = amazonS3.getObject(bucketName, fileName);
@@ -129,6 +131,8 @@ public class DocumentController {
             }
             this.progressDownload.remove(id);
 
+            fileBytes = Files.readAllBytes(tempFile.toPath());
+
             HttpHeaders headers = new HttpHeaders();
             headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
 
@@ -136,7 +140,7 @@ public class DocumentController {
                     .contentLength(tempFile.length())
                     .contentType(MediaType.parseMediaType(s3Object.getObjectMetadata().getContentType()))
                     .headers(headers)
-                    .body(tempFile);
+                    .body(fileBytes);
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new MessageResponse("A technical error has occurred. Please contact support."));
